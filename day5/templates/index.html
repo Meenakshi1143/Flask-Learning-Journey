@@ -1,0 +1,27 @@
+
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>
+            Home page 
+        </title>
+    </head>
+    <body>
+        
+        <h1>Welcome to my world</h1>
+        <h6>This is Meeee</h6>
+        
+        <form method = "post" action = "/postData">
+        <label for="name">Name:</label>
+        <input type="text" name="name" id="name" required><br><br>
+        <label for="email">Email:</label>
+        <input type="email" name="email" id="email" required><br><br>
+        <label for="password">Password:</label>
+        <input type="password" name="password" id="password" required><br>
+        <input type="submit" value="Submit">
+        <span style="color:red">{{err}}</span>
+        <span style="color:green">{{msg}}</span>
+        </form>
+
+    </body>
+</html>
