@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+
+    {% block title %}
+    <title>Project</title>
+    {% endblock %}
+
+    {% block content %}
+    <h1 style="color: tomato;">WELCOME TO INDEX PAGE</h1>
+    {% if d>20 %}
+        <h3>{{d}} is greater than 20</h3>
+    {% elif d<20 %}
+        <p>{{d}} is less than 20</p>
+    {% else %}
+        <p>{{d}} is equal to 20</p>
+    {% endif %}
+    {% if m %}
+        {% for stud in m %}
+            <p>{{stud.id}} - {{stud.name}}</p>
+        {% endfor %}
+    {% endif %}
+    {% endblock %}
