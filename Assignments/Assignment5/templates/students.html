@@ -1,0 +1,78 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>My Student Records</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f0fdfa;
+            padding: 30px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #0f766e;
+        }
+
+        table {
+            width: 90%;
+            margin: 25px auto;
+            border-collapse: collapse;
+            background: white;
+            box-shadow: 0 4px 12px #cbd5e1;
+        }
+
+        th {
+            background: #0f766e;
+            color: white;
+        }
+
+        th, td {
+            padding: 14px;
+            text-align: center;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        tr:hover {
+            background: #ccfbf1;
+        }
+
+        .A { color: #15803d; font-weight: bold; }
+        .B { color: #2563eb; font-weight: bold; }
+        .C { color: #ca8a04; font-weight: bold; }
+        .D { color: #dc2626; font-weight: bold; }
+
+        @media (max-width: 600px) {
+            body { padding: 10px; }
+            table { width: 100%; }
+            th, td { padding: 8px 4px; font-size: 12px; }
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Student Records</h1>
+
+    <table>
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Percentage</th>
+            <th>Grade</th>
+        </tr>
+
+        {% for s in students %}
+        <tr>
+            <td>{{ s.id }}</td>
+            <td>{{ s.name }}</td>
+            <td>{{ s.percentage }}%</td>
+            <td class="{{ s.grade }}">{{ s.grade }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+</body>
+</html>

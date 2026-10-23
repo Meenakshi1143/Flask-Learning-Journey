@@ -1,42 +1,44 @@
-from flask import Flask, render_template, url_for, request
+from flask import Flask, render_template, request, jsonify
 
 app = Flask(__name__)
 
 
-# 1. Home page
+# Question 1: Navigate from Home to About using url_for()
 @app.route('/')
 def home():
-    return render_template('index.html')
+    return render_template('home.html')
 
 
-# 2. About page
 @app.route('/about')
 def about():
     return render_template('about.html')
 
 
-# 3. GET request to get name and batchno
-@app.route('/getData', methods=['GET'])
-def getData():
+# Question 2: GET request to get name and batchno
+@app.route('/getdata', methods=['GET'])
+def getdata():
     name = request.args.get('name')
     batchno = request.args.get('batchno')
 
-    return f"Name: {name}, Batch No: {batchno}"
+    return jsonify({
+        'name': name,
+        'batchno': batchno
+    })
 
 
-# 4. POST request to fetch name and skills using JSON
-@app.route('/postData', methods=['POST'])
-def postData():
+# Question 3: POST request to fetch name and skills using JSON
+@app.route('/postdata', methods=['POST'])
+def postdata():
     data = request.get_json()
 
-    name = data['name']
-    skills = data['skills']
+    name = data.get('name')
+    skills = data.get('skills')
 
-    return {
+    return jsonify({
         'name': name,
         'skills': skills
-    }
+    })
 
 
 if __name__ == '__main__':
-    app.run(host = '0.0.0.0', debug=True, port=5001)
+    app.run(debug=True)
