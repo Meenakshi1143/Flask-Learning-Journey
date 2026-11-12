@@ -75,6 +75,15 @@ Login - SNS
         </a>
 
     </p>
+    <p class="form-footer">
+        Don't know password?
+        <a href="{{url_for('forgot_password')}}">
+            Forgot Password 
+        </a>
+    </p>
+    {% if err %}
+    <p class="error-message">{{ err }}</p>
+{% endif %}
 
 </div>
 

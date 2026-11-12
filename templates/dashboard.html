@@ -1,10 +1,11 @@
 {% extends "base.html" %}
-
-
 {% block title %}
 Dashboard - SNS
 {% endblock %}
-
+{% block navmenu %}
+    <a href="{{ url_for('profile') }}">Profile</a>
+    <a href="{{ url_for('logout') }}">Logout</a>
+{% endblock %}
 
 {% block content %}
 
@@ -21,15 +22,21 @@ Dashboard - SNS
         </p>
 
     </div>
-
-
+    <div>
     <a
-        href="/notes/add"
+        href="/files"
         class="btn btn-primary"
     >
-        + Add Note
+        My Files
     </a>
 
+    <a
+        href="/notes"
+        class="btn btn-primary"
+    >
+        My Notes
+    </a>
+    </div>
 </section>
 
 

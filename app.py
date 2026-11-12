@@ -1,197 +1,256 @@
-from config import Config
+from config import Config,emailTemplates
 import mysql.connector as sql
 import random
 import smtplib
 from email.message import EmailMessage
-from flask import Flask,render_template,redirect,url_for,request,session
+from flask import Flask,render_template,redirect,url_for,request,session, flash
 import bcrypt
+from werkzeug.utils import secure_filename
+import os
+import sys
 
-
+#create an upload folder if not exists
+if not os.path.exists('upload'):
+    os.mkdir('upload') #it will create a folder..
+#Setting up a secure way to generate and verify timed
+#tokens in Flask app
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 app = Flask(__name__)
+app.secret_key = "Codegnan@123"
 
-app.secret_key = "Maggie"
 DBConfig = Config()
-
-from_email = DBConfig.from_email 
+from_email = DBConfig.from_email
 email_app_password = DBConfig.email_app_password
-otp = 0
-
+#Encode -->Str to Bytes
+#Decode --> Bytes to Str
+#gensalt --> is it used to generate a key
+#how many rounds this key to iterate
+#gensalt(4)
 def generateHash(text):
-    btext = text.encode('utf-8')
-    cipher_text = bcrypt.hashpw(btext,bcrypt.gensalt(5))
+    btext=text.encode('utf-8')
+    cipher_text = bcrypt.hashpw(btext,bcrypt.gensalt(4))
     return cipher_text.decode('utf-8')
-    #print(text[0],btext[0])
+    #print(cipher_text,len(cipher_text))
+    #print(text[0],btext[0]) #returns encoded value
     #print(type(btext))
     #bcrypt.hashpw(btext)
-generateHash("maggi")
-
-
-#we will make connection with DB
+#generateHash("Saketh")
+#We will first make connection with DB
 def getConnectionWithDB():
     db_host = DBConfig.db_host
     db_port = DBConfig.db_port
     db_user = DBConfig.db_user
     db_password = DBConfig.db_password
     db_name = DBConfig.db_name
+    #print(db_name,db_host)
     try:
         connection = sql.connect(
-            host = db_host,
+            host=db_host,
             port = db_port,
             user = db_user,
             password = db_password,
             database = db_name
         )
         return connection
-    except:
-        return"Connection failed"
-#Inserting data into tables
-def insertRecords(user_data):
-    """Inserting user records"""
+    except Exception as e:
+        print("Database Connection Error:", e)
+        return "Connection Failed"
+#Insert the data into the table
+def insertUserRecord(user_data):
+    """Inserting User records"""
     name = user_data['name']
     email = user_data['email']
     password_hash = user_data['password_hash']
     connection = getConnectionWithDB()
-    if connection == "Connection failed":
+    if connection == "Connection Failed":
         return False
     else:
         try:
             cursor = connection.cursor()
-            cursor.execute("INSERT INTO users(name,email,password_hash) values(%s,%s,%s)",(name,email,password_hash))
+            cursor.execute(
+            "INSERT INTO users(name,email,password_hash) values(%s,%s,%s)",(name,email,password_hash))
             connection.commit()
             cursor.close()
             connection.close()
             return True
         except:
             print("Data cannot be inserted")
-    
-#Function to define data
+            return False
+#Now let us  define the data
+data = [
+    {
+        'name': 'Shekar',
+        'email': 'shekar1505@gmail.com',
+        'password_hash': '1a2b3c4d'
+    },
+    {
+        'name': 'Mamatha',
+        'email': 'mamtha0803@gmail.com',
+        'password_hash': '5e6f7g8h'
+    },
+    {
+        'name': 'Sai',
+        'email': 'Sai@codegnan.com',
+        'password_hash': '9i0j1k2l'
+    }
+]
+#for user in data:
+# #    result = insertUserRecord(user)
 
-data = {
-    'name': 'charan',
-    'email': 'cherry@gmail.com',
-    'password_hash': '12345'
-}
-print(insertRecords(data))
+#Let us create multiple functions to access the data from
+#the tables,along with specific user wise (id,name,email)
 
-#Functions to create to access data
-def ReadUsers():
-    connection  = getConnectionWithDB()
-    if connection == "Connection failed":
+def readUserRecords():
+    connection = getConnectionWithDB()
+    if connection == "Connection Failed":
         return False
     else:
         cursor = connection.cursor()
-        cursor.execute("select * from users")
+        cursor.execute("SELECT * from users")
         data = cursor.fetchall()
         records = []
         for record in data:
             temp = {}
+            #print(record)
             temp['id'] = record[0]
             temp['name'] = record[1]
             temp['email'] = record[2]
             temp['password_hash'] = record[3]
             temp['is_verified'] = record[4]
             temp['created_at'] = record[5]
-            
             records.append(temp)
-            cursor.close()
-            connection.close()
+        cursor.close()
+        connection.close()
         return records
-
-all_users = ReadUsers()
-if all_users:
-    for u in all_users:
-        print(u)
-def ReadUserRecordByEmail(user_data):
+#print(readUserRecords())
+def readUserRecordbyEmail(user_data):
     email = user_data['email']
     connection = getConnectionWithDB()
-    if connection == "Connection failed":
+    if connection == "Connection Failed":
         return False
     else:
         try:
             cursor = connection.cursor()
-            cursor.execute("select * from users where email = %s",(email,))
+            cursor.execute("SELECT * from users where email=%s",
+                       (email,))
             data = cursor.fetchone()
-            #print(data)
+        #print(data)
             record = {
-                        'id':data[0],
-                        'name':data[1],
-                        'email':data[2],
-                        'password_hash': data[3],
-                        'is_verified':data[4],
-                        'created_at': data[5]
-                    }
+                "id":data[0],
+                "name":data[1],
+                "email":data[2],
+                "password_hash":data[3],
+                "is_verified":data[4],
+                "created_at":data[5]}
+            return record
+        except:
+             cursor.close()
+             connection.close()
+             return "No Record"
+def readUserRecordbyId(user_data):
+    id=user_data['id']
+    connection=getConnectionWithDB()
+    if connection=='Connection Failed':
+        return False
+    else:
+        cursor=connection.cursor()
+        cursor.execute("SELECT * from users where id=%s",(id,))
+        data=cursor.fetchone()
+        try:
+            record={
+                'id':data[0],
+                'name':data[1],
+                'email':data[2],
+                'password_hash':data[3],
+                'is_verified':data[4],
+                'created_at':data[5]
+            }
+            cursor.close()
+            connection.close()
             return record
         except:
             cursor.close()
             connection.close()
-            return "No Record"
-        
-def ReadUserRecordById(user_data):
-    user_id = user_data['id']
+            return 'No record'
 
-    connection = getConnectionWithDB()
-
-    if connection == "Connection failed":
-        return False
-
+def updateNamebyIDorEmail(user_data):
+    query_filter = ""
     try:
+        id = user_data['id']
+        query_filter = 'id'
+    except:
+        email = user_data['email']
+        query_filter = "email"
+    new_name = user_data['new_name']
+    connection = getConnectionWithDB()
+    if connection == "Connection Failed":
+        return False
+    else:
         cursor = connection.cursor()
-        cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
-        data = cursor.fetchone()
-
-        if data is None:
-            return "No Record"
-
-        record = {
-            'id': data[0],
-            'name': data[1],
-            'email': data[2],
-            'password_hash': data[3],
-            'is_verified': data[4],
-            'created_at': data[5]
-        }
-
-        return record
-
-    except Exception as e:
-        print(e)
-        return "No Record"
-
-    finally:
+        if query_filter == "id":
+            query = "UPDATE users SET name = %s WHERE id = %s"
+            values = (new_name,id)
+        elif query_filter == "email":
+            query = "UPDATE users SET name = %s WHERE email =%s"
+            values = (new_name,email)
+        cursor.execute(query,values)
+        connection.commit()
         cursor.close()
         connection.close()
-
-
-
-def updateVerifiedByIdorEmail(user_data):
+        return True
+def updatePasswordByIdorEmail(user_data):
+    query_filter = ""
     try:
-            id = user_data['id']
-            query_filter = 'id'
+        id = user_data['id']
+        query_filter='id'
     except:
-            email = user_data['email'] 
-            query_filter = "email" 
-    new_IS_VERIFIED=user_data['new_IS_VERIFIED']
+        email=user_data['email']
+        query_filter='email'
+    new_password = user_data['new_password']
     connection = getConnectionWithDB()
-    if connection == "Connection failed":
-            return False   
+    if connection == "Connection Failed":
+        return False
     else:
-            cursor = connection.cursor()
-            if query_filter == "id":
-               query = "UPDATE users SET IS_VERIFIED = %s WHERE id = %s"
-               values = (new_IS_VERIFIED,id)
-            elif query_filter =="email":
-                query = "UPDATE users SET IS_VERIFIED = %s WHERE email = %s"
-                values = (new_IS_VERIFIED,email)
-            cursor.execute(query,values) 
-            connection.commit()
-            cursor.close()
-            connection.close()
-            return True   
-
+        cursor = connection.cursor()
+        if query_filter == "id":
+            query = "UPDATE users SET password_hash=%s WHERE id=%s"
+            values = (new_password,id)
+        elif query_filter == "email":
+            query = "UPDATE users SET password_hash=%s WHERE email =%s"
+            values = (new_password,email)
+        cursor.execute(query,values)
+        connection.commit()
+        cursor.close()
+        connection.close()
+        return True
+def updateVerifiedByIdorEmail(user_data):
+    query_filter = ""
+    try:
+        id = user_data['id']
+        query_filter='id'
+    except:
+        email=user_data['email']
+        query_filter='email'
+    verified = user_data['verified']
+    connection = getConnectionWithDB()
+    if connection == "Connection Failed":
+        return False
+    else:
+        cursor = connection.cursor()
+        if query_filter == "id":
+            query = "UPDATE users SET is_verified=%s WHERE id=%s"
+            values = (verified,id)
+        elif query_filter == "email":
+            query = "UPDATE users SET is_verified=%s WHERE email =%s"
+            values = (verified,email)
+        cursor.execute(query,values)
+        connection.commit()
+        cursor.close()
+        connection.close()
+        return True
 def generateOTP():
     otp = random.randint(1000,9999)
     return otp
-
 def sendOTPviaemail(to_email,otp):
     message = EmailMessage()
     message['Subject'] = "OTP Notification"
@@ -205,59 +264,86 @@ def sendOTPviaemail(to_email,otp):
         server.login(from_email,email_app_password)
         server.send_message(message)
     return True
+#sendOTPviaemail('sakethreddy.kallepu@gmail.com',5423)
+def SendEmail(subject:str,to_email:str,body:str):
+    message = EmailMessage()
+    message['Subject'] = subject
+    message['From']=from_email
+    message['To'] = to_email
+    #message.set_content(body)
+    message.add_alternative(body, subtype='html')
+    with smtplib.SMTP("smtp.gmail.com",587) as server:
+        server.starttls()
+        server.login(from_email,email_app_password)
+        server.send_message(message)
+    return True
+
+
+
+
+
+
+
 
 
 def validateData(user_data):
-
-    errors = []
-
-    name = user_data['name'].strip()
-    email = user_data['email'].strip()
+    errors =[]
+    name=user_data['name']
+    email=user_data['email']
     password = user_data['password']
     confirm_password = user_data['confirm_password']
-
-    if len(name) < 3:
-        errors.append("Name must contain at least 3 characters")
-
-    if not email or '@' not in email or '.' not in email:
-        errors.append("Enter a valid email address")
-
-    if len(password) < 8:
-        errors.append("Password must contain at least 8 characters")
-
-    if password != confirm_password:
-        errors.append("Passwords do not match")
-
+    if name is None or len(name)<2:
+        errors.append("Invalid Name")
+    if email is None or len(email)<5:
+        errors.append("Invalid Email")
+    if password is None or len(password)<5:
+        errors.append("Invalid Password")
+    if password!=confirm_password:
+        errors.append("Password mismatch")
     return errors
-
 def verifyDuplicateEmail(user_data):
     #email = user_data['email']
-    is_duplicate = ReadUserRecordByEmail(user_data)
-    if is_duplicate == False:    #No duplicate
-                #if there is no account
-                #convert password to hast value
-                #otp = generateOTP()
-                session['otp'] = generateOTP()
-                password_hash = generateHash(user_data['password'])
-                name = user_data['name']
-                email = user_data['email']
-                status = insertRecords(
-                    {
-                        'name':name,
-                        'email':email,
-                        'password_hash':password_hash
-                    }
-                )
-                if status == True:
-                    session['username'] = email
-                    session['OTP'] = otp
-                    sendOTPviaemail(email,otp)
-                    return redirect('/verify')
-                    #return render_template('register.html', res = "Registration Successfully COmpleted")
-                else:
-                    return render_template('register.html',err="Regestraton Failed")
-    else:     #duplicate is present
-        return render_template('register.html')
+    record = readUserRecordbyEmail(user_data)
+    if (record=="No Record"):
+        return False  #duplicate ledu
+    else:
+        return True  #duplicate undi
+
+user_data = {'id':2,
+             'name':"",
+             'email':'shekar1505@gmail.com',
+             'password':"12345",
+             'confirm_password':'123',
+             'new_password':'admin1234',
+             'verified':True}
+#print(validateData(user_data))
+#print(updateNamebyIDorEmail(user_data))
+#print(updateVerifiedByIdorEmail(user_data))
+#print(generateOTP())
+serializer = URLSafeTimedSerializer(app.secret_key)
+def resetPasswordTokenGenerate(email):
+    token = serializer.dumps(
+        email,
+        salt="reset-password"
+    )
+    return token
+def validateToken(token):
+    try:
+        data = serializer.loads(
+            token,
+            salt="reset-password",
+            max_age=300
+        )
+        return data
+
+    except SignatureExpired:
+        return "Timeout"
+
+    except BadSignature:
+        return "Invalid"
+
+
+
 
 @app.route('/')
 def home():
@@ -265,7 +351,6 @@ def home():
 
 @app.route('/register',methods=['GET','POST'])
 def register():
-    global otp
     if (request.method =="GET"):
         return render_template('register.html')
     elif (request.method=="POST"):
@@ -281,14 +366,112 @@ def register():
         }
         errors = validateData(user_data)
         if len(errors)>0:
-            return render_template('register.html',errors=errors)
+            return render_template('register.html',
+                               errors=errors)
         else:
             is_duplicate = verifyDuplicateEmail(user_data)
-            if is_duplicate == False:
-                pass
+            if is_duplicate == False: #duplicate ledu
+                #if there is no account 
+                #convert password to hash value
+                OTP = generateOTP()
+                password_hash = generateHash(user_data['password'])
+                name = user_data['name']
+                email = user_data['email']
+                status = insertUserRecord({
+                    'name':name,
+                    'email':email,
+                    'password_hash':password_hash
+                })
+                #status of insertion
+                if status == True:
+                    session['username'] = email
+                    session['otp'] = OTP
+                    #sendOTPviaemail(email,OTP)
+                    SendEmail(subject="Verify Your Registration - Notes Management",
+                              to_email=email,
+                              body=emailTemplates.send_otp_template(username=name,
+                                                                    otp=OTP))
+                    return redirect('/verify')
+                    #return render_template('register.html',
+                                  #res="Registration Successfully Completed"
+                                  #)
+                else:
+                    return render_template('register.html',
+                                           err="Registration Failed")
+            else: #duplicate undi
+                return render_template('register.html',
+                                       err="Account already exists")
+#forgot password route
+@app.route("/forgot_password",methods=['GET','POST'])
+def forgot_password():
+    if request.method == "GET":
+        return render_template("forgot_password.html")
+    if request.method == "POST":
+        email = request.form.get("email",None)
+        #check whether the email exists in db or not
+        data = {'email':email}
+        record = readUserRecordbyEmail(user_data=data)
+        if 'id' in record:
+            #send mail generation of token
+            token = resetPasswordTokenGenerate(
+                email=email)
+            #reset password url
+            reset_url = url_for('reset_password',
+                                token=token,
+                                _external=True)
+            email_status = SendEmail(
+                subject = "Reset Password - SNS",
+                to_email=email,
+                body = emailTemplates.send_reset_password_template(
+                    username=record['name'],
+                    url=reset_url,
+                    time=5
+                ))
+            if email_status:
+                return render_template("forgot_password.html",
+                                       msg="Email has been sent")
             else:
-                return render_template('register.html')
-
+                return render_template("forgot_password.html",
+                                       error = "Unable to send email")
+        else:
+            return render_template("forgot_password.html",
+                                   error="Enter a Valid email")
+#reset-password route
+@app.route('/reset-password/<string:token>',
+           methods=['GET','POST'])
+def reset_password(token):
+    token_status= validateToken(token=token)
+    if token_status=="Invalid":
+        return render_template('forgot_password.html',
+                               error="Invalid URL")
+    elif token_status=="Timeout":
+        return render_template('forgot_password.html',
+                               error="URL Expired")
+    email = token_status
+    if request.method == "GET":
+        return render_template('reset_password.html',
+                               token=token)
+    #POST request
+    if request.method == "POST":
+        new_password = request.form.get('new_password')
+        confirm_password = request.form.get('confirm_password'
+                                            )
+        if new_password == confirm_password:
+            #generate hash password
+            password_hash = generateHash(text = new_password)
+            #update the password in the database
+            data = {'email':email,
+                    'new_password':password_hash}
+            update = updatePasswordByIdorEmail(user_data=data)
+            if update:
+                #redirect to login page
+                return redirect('/login')
+            else:
+                return render_template('reset_password.html')
+        else:
+            return render_template('reset_password.html',
+                                   error="Password mismatch")
+        
 @app.route('/login', methods=['GET', 'POST'])
 def login():
 
@@ -300,60 +483,459 @@ def login():
         email = request.form['email']
         password = request.form['password']
 
-        user_data = {
-            'email': email
-        }
+        user_data = {'email': email}
 
-        user = ReadUserRecordByEmail(user_data)
+        record = readUserRecordbyEmail(user_data=user_data)
 
-        if user == "No Record" or user is False:
+        print("Login Data:", record)
+
+        if not isinstance(record, dict):
             return render_template(
                 'login.html',
-                error="Invalid email or password"
+                err="Account does not exist"
             )
 
-        if user['password_hash'] == password:
-            return redirect(url_for('dashboard'))
+        # Check whether the email is verified
+        if record['is_verified'] == True:
 
-        return render_template(
-            'login.html',
-            error="Invalid email or password"
-        )
+            login_status = bcrypt.checkpw(
+                password.encode('utf-8'),
+                record['password_hash'].encode('utf-8')
+            )
+
+            print("Login Status:", login_status)
+
+            if login_status:
+
+                session['email'] = email
+                session['id'] = record['id']
+                session['name'] = record['name']
+
+                return redirect(url_for('dashboard'))
+
+            else:
+                return render_template(
+                    'login.html',
+                    err="Invalid email or password"
+                )
+
+        else:
+            return render_template(
+                'login.html',
+                err="Please verify your email first"
+            )
+
 
 @app.route('/dashboard')
 def dashboard():
-    return render_template('dashboard.html')
+    #if the user data is not in thesession redirect to login page
+    if "id" not in session:
+        return redirect("/login")
+    return render_template("dashboard.html",
+                           username=session['name'])
 
+#profile route
+@app.route('/user/profile',methods=['GET'])
+def profile():
+    if "id" not in session:
+        redirect('/login')
+    name = session['name']
+    email = session['email'] 
+    return render_template("profile.html",email=email,
+                            name=name)
+
+def getNotesByUserId(user_id):
+    try:
+        connection=getConnectionWithDB()
+        if connection=="Connection Failed":
+            return False, "Database Connection Failed"
+        else:
+            cursor=connection.cursor(dictionary=True)
+            get_notes_by_id="""SELECT * FROM NOTES WHERE USER_ID=%s;"""
+            cursor.execute(get_notes_by_id,(user_id,))
+            notes=cursor.fetchall()
+            connection.commit()
+            cursor.close()
+            connection.close()
+            return True,notes
+    except Exception as e:
+        return False,f"Exception raised in add notes:{e}"
+
+
+#notes route
+@app.route('/notes',methods=['GET','POST'])
+def mynotes():
+    if "id" not in session:
+        return redirect('/login')
+    if request.method == "GET":
+        #get user notes form DB
+        id = session['id']
+        print(id)
+        status,notes = getNotesByUserId(user_id = id)
+        print(notes)
+        if status == True:
+            return render_template("notes.html",notes = notes)
+        else:
+            return render_template('notes.html',err=notes)
+
+#inserting notes records in table 
+def AddNotesRecord(user_id:int,title:str,content:str):
+    try:
+        connection = getConnectionWithDB()
+        if connection == "Connection Failed":
+            return False,"Database Connection Failed"
+        else:
+            cursor = connection.cursor()
+            add_notes_query = """insert into notes(user_id,title,content) values(%s,%s,%s);"""
+            cursor.execute(add_notes_query,(user_id,title,content))
+            connection.commit()
+            cursor.close()
+            connection.close()
+            return True,"Notes Saved"
+    except Exception as e:
+        return False,f'Exception raised in add notes:{e}'
+#add notes route
+@app.route('/notes/addnotes',methods=['GET','POST'])
+def add_notes():
+    if "id" not in session:
+        return redirect('/login')
+    #GET request 
+    if request.method == "GET":
+        return render_template('addnotes.html')
+    #POST request
+    if request.method == "POST":
+        title = request.form.get('Title',"No Title")
+        content = request.form.get('content',"No Content")
+        #store in db
+        status,msg = AddNotesRecord(user_id=session['id'],title=title,content=content)
+        if status == True:
+            #redirect to notes dashboard
+            return render_template('notes.html',msg=msg)
+        else:
+            return render_template('notes.html',err=msg)
+#get notes by id
+def getNotesById(notes_id):
+    try:
+        connection = getConnectionWithDB()
+        if connection == "Connection Failed":
+            return False,"Database Connection Failed"
+        else:
+            cursor = connection.cursor(dictionary=True)
+            get_notes_by_id = """select title,content from notes where id =%s;"""
+            cursor.execute(get_notes_by_id,(notes_id,))
+            notes = cursor.fetchone()
+            cursor.close()
+            connection.close()
+            return True,notes
+    except Exception as e:
+        return False,f'Exception raised in view notes:{e}'
+#view notes
+@app.route('/notes/view/<int:note_id>')
+def view_notes(note_id):
+    #get data from database based on notesid
+    status,notes = getNotesById(notes_id=note_id)
+    if status == True:
+        title = notes['title']
+        content = notes['content']
+        return render_template('viewnotes.html',title=title,content=content)
+    else:
+        return render_template('notes.html',err=notes)
+
+#update notes by id
+def updateNotesById(notes_id:int,title:str,content:str):
+    try:
+        connection = getConnectionWithDB()
+        if connection == "Connection Failed":
+                    return False,"Database Connection Failed"
+        else:
+            cursor = connection.cursor(dictionary=True)
+            update_notes_by_id = """update notes set title=%s where id=%s;"""
+            cursor.execute(update_notes_by_id,(title,content,notes_id))
+            connection.commit()
+            cursor.close()
+            connection.close()
+            return True,"Notes Updated"
+    except Exception as e:
+        return False,f"Exception raised in updated notes:{e}"
+
+#edit notes route
+@app.route('/notes/edit/<int:note_id>',methods = ['GET','POST'])
+def edit_notes(note_id):
+    #get notes from the database
+    if request.method == "GET":
+        status, notes = getNotesById(notes_id=note_id)
+        if status == True:
+            return render_template('updatenotes.html', title = notes['title'],content = notes['content'], notes_id = note_id)
+        else:
+            return render_template('notes.html', err = notes)
+        
+    #post request
+    if request.method == "POST":
+        title = request.form.get('title')
+        content = request.form.get('content')
+        print(title, content)
+        #Updates notes content in database as per notes id
+        status, msg = updateNotesById(
+            title = title, content = content, notes_id = note_id)
+        _, notes = getNotesByUserId(user_id=session['id'])
+        if status == True:
+            return render_template('notes.html', msg =msg, notes=notes)
+        else:
+            return render_template('notes.html', err = msg, notes = notes)
+#delete notes
+def deleteNotesById(notes_id):
+    try:
+        connection = getConnectionWithDB()
+        if connection == "Connection Failed":
+            return False,"Database Connection Failed"
+        else:
+            cursor = connection.cursor(dictionary=True)
+            delete_notes_by_id = """delete from notes where id=%s;"""
+            cursor.execute(delete_notes_by_id,(notes_id,))
+            connection.commit()
+            cursor.close()
+            connection.close()
+            return True,"Notes Deleted"
+    except Exception as e:
+            return False,f"Exception raised in updated notes:{e}"
+            
+#delete notes route
+@app.route('/notes/delete/<int:note_id>',methods=['GET','POST'])
+def delete_notes(note_id):
+    #delete notes from database based on the note_id
+    status,msg=deleteNotesById(notes_id=note_id)
+    _, notes = getNotesByUserId(user_id=session['id'])
+    if status==True:
+        return render_template('notes.html',msg=msg,notes=notes)
+    else:
+        return render_template('notes.html',err=msg,notes=notes)
+
+#------------------------------
+#           FILES
+#-----------------------------
+@app.route('/files')
+def myfiles():
+    if "id" not in session:
+        return redirect('/login')
+    if request.method == "GET":
+        return render_template('files.html')
+#check file exist in allowed types
+def checkFileAllowed(filename):
+    allow_types = ['pdf','doc','jpeg','jpg','png','svg','csv',
+                   'xml','txt']
+    if "." in filename and filename.split('.')[1] in allow_types:
+        return True
+    else:
+        return False
+
+#check duplicate file
+def checkFileDuplicate(userid,filename):
+    try:
+        connection = getConnectionWithDB()
+        if connection == "Connection Failed":
+            return False,"Database Connection Failed"
+        else:
+            cursor = connection.cursor()
+            check_file_duplicate = """select * from file_data
+            where stored_name = %s and user_id=%s;"""
+            cursor.execute(check_file_duplicate,(filename,
+                                                 userid))
+            record = cursor.fetchone()
+            cursor.close()
+            connection.close()
+            if record:
+                return False,"Duplicate file is present"
+            else:
+                return True, "Not a Duplicate file"
+    except Exception as e:
+        return False,f"Exception raised in file: {e}"
+
+#insert files into table
+def UploadFileInDB(userid,filename,stored_name,type,size,path):
+    try:
+        connection = getConnectionWithDB()
+        if connection == "Connection Failed":
+            return False,"Database Connection Failed"
+        else:
+            cursor = connection.cursor()
+            insert_filedata_query= """insert into file_data
+            (user_id,original_name,stored_name,mime_type,
+            size_bytes,storage_path) values(%s,%s,%s,%s,%s,%s);"""
+            cursor.execute(insert_filedata_query,
+                           (userid,filename,stored_name,
+                            type,size,path))
+            connection.commit()
+            cursor.close()
+            connection.close()
+            return True,"File Uploaded"
+    except Exception as e:
+        return False,f'Exception raised in File upload:{e}'
+
+#get file metadata by file_id
+def getFileByFileId(fileid):
+    try:
+        connection = getConnectionWithDB()
+        if connection == "Connection Failed":
+            return False,"Database Connection Failed"
+        else:
+            cursor = connection.cursor(dictionary=True)
+            get_file_by_user_id = """select * from file_data
+            where id = %s;"""
+            cursor.execute(get_file_by_user_id,(fileid,))
+            file=cursor.fetchone()
+            cursor.close()
+            connection.close()
+            return True,file
+    except Exception as e:
+        return False,f'Exception raised in View files:{e}'
+    
+#upload file route
+@app.route('/files/upload',methods=['GET','POST'])
+def uploadFile():
+    if "id" not in session:
+        return redirect('/login')
+    #GET request
+    if request.method == "GET":
+        return render_template('uploadFile.html')
+    #POST request
+    if request.method == 'POST':
+        #get file from form
+        # file = request.form.get('file')
+        file = request.files.get('file')
+        if file and file.filename != "":
+            #check file in allowed types
+            filename = file.filename
+            if checkFileAllowed(filename=filename):
+                #check the valid allowed types of files
+                filename_secure=secure_filename(filename)
+                #Check the file in allowed types
+                status, msg = checkFileDuplicate(
+                    userid = session['id'],
+                    filename= filename_secure
+                )
+                if status == True:
+                    #Save the file
+                    upload_path = os.path.join('upload', filename_secure)
+                    file.save(upload_path)
+
+                # file.save('/upload')
+                    file_size = os.path.getsize(upload_path)
+                    file_type = os.path.splitext(filename_secure)[1].lower().lstrip('.')
+                    #path stored in the DB
+                    filepath = f'upload/{filename_secure}'
+                    #insert file metadata in database
+                    status, msg = UploadFileInDB(userid = session['id'],
+                        filename = filename,
+                        stored_name= filename_secure,
+                        type = file_type,
+                        size = file_size,
+                        path = filepath)
+                if status == True:
+                    flash(msg, "msg")
+                    return redirect('/files')
+                else:
+                    flash(msg,'err')
+                    return redirect('/files')
+            else:
+                flash(msg, 'err')
+                return redirect('/files')
+        else:
+            flash("File type is not allowed", "err")
+            return redirect('/files')
+        #render_template --> returns HTML directly to currentURL
+        #redirct --> Instructs the browser to make a new request a different URL
+    else:
+        flash("File not uploades", "err")
+        return redirect('/files')
+
+                #get file metadata
+                #store filemeta data in database
+                #redirect to files dashboard
+
+#view file
+@app.route('/files/view/<file_id>')
+def viewFile():
+    if "id" not in session:
+        return redirect('/login')
+    pass
+
+#download file
+@app.route('/files/download/<file_id>')
+def downloadFile():
+    if "id" not in session:
+        return redirect('/login')
+    pass
+
+#delete file
+@app.route('/files/delete/<file_id>')
+def deleteFile():
+    if "id" not in session:
+        return redirect('/login')
+    pass
+
+
+#logout route
+@app.route("/logout",methods=['GET'])
+def logout():
+    #if id in session
+    session.pop('id',None)
+    session.pop('name',None)
+    session.pop('email',None)
+    return redirect('/login')
+
+#verify route
 @app.route('/verify',methods = ['GET','POST'])
 def verify():
-    global otp
-    if request.method == 'GET':
+    if request.method == "GET":
         return render_template('verify.html')
     elif request.method == "POST":
-        OTP = request.form['OTP']
-        OTP = int(OTP)
-        if OTP == otp:
+        otp = request.form['otp']
+        otp = int(otp)
+        if otp == session['otp']:
             is_verify = True
-            updateVerifiedByIdorEmail
+            updateVerifiedByIdorEmail(
+                {'email':session['username'],'verified':is_verify})
+            return redirect('/login')
+        else:
+            return render_template('verify.html',err="Invalid OTP")
 
 if (__name__ == "__main__"):
     app.run(host="0.0.0.0",
-            port = 5003,
+            port = 5002,
             debug=True)
-'''
-User-->register.html-->Registration form-->Post-->Python-->collecting Data-->Validating-->Verifying-->Password to password hash-->MySQL Table
-html <=> python <=> MySql 
-@app.route('register',methods =['GET','POST'])
-def register():
-    if request.method == "GET":
-        renderHTMLPasgr()
-    elif request.method == "POST":
-        collectUsedata()
-        validateUserData()
-        dispalyErrors()
-        status = verifyAccountExists()
-        if status:
-            insertRecords()
-        else:
-            displayErrorMessage()
-'''
+#Registration Flow:
+#User --> register.html <--> Registration Form --> 
+# POST <-->Python  -->Collecting Data -->Validating -> 
+# Verifying -->Password to Password Hash <-->MYSQL Table
+
+#HTML <-> Python <-> MYSQL
+
+#Registration FLow
+#User has to click on Get Started
+#Register page
+#Name,Email,Password,Confirm Password and submit
+#verifyDuplicateEmail() --> if account not exists
+#generate OTP
+#send email with otp
+#redirect to verify.html
+#enter the otp receiveed on email
+#if the otp matches with the session otp
+#it will redirect to login
+#if they are not matching,it redirects with a message
+
+
+
+
+#@app.route('/register',methods = ['GET','POST'])
+#def register():
+#    if request.method == "GET":
+#       renderHTMLPage()
+#    elif request.method == "POST":
+#        collectUserData()
+#        validateUserData()
+#        displayErrors()
+#        status = verifyAccountExist()
+#        if status:
+#            insertRecord()
+#        else:
+#            displayErrorMessage()

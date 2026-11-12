@@ -29,8 +29,17 @@
 
         <nav>
             <a href="{{ url_for('home') }}">Home</a>
+    
+        {% if 'id' in session %}
+            <a href="{{ url_for('dashboard') }}">Dashboard</a>
+            <a href="{{ url_for('profile') }}">Profile</a>
+            <a href="{{ url_for('myfiles')}}">Files</a>
+            <a href="{{ url_for('logout') }}">Logout</a>
+            
+        {% else %}
             <a href="{{ url_for('register') }}">Register</a>
             <a href="{{ url_for('login') }}">Login</a>
+        {% endif %}
         </nav>
 
     </div>
